@@ -3,11 +3,10 @@ console.log('main.js loaded');
 // Smooth scrolling for navigation links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     const href = anchor.getAttribute('href');
-    // href가 '#'이거나 빈 문자열이 아닌 경우에만 처리
     if (href && href !== '#' && href.length > 1) {
-        const targetId = href.substring(1); // '#' 제거
-        if (targetId && document.getElementById(targetId)) {
-            anchor.addEventListener('click', function (e) {
+        const targetId = href.substring(1);
+        if (document.getElementById(targetId)) {
+            anchor.addEventListener('click', e => {
                 e.preventDefault();
                 document.getElementById(targetId).scrollIntoView({
                     behavior: 'smooth',
@@ -20,30 +19,24 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 
 // Animate elements when they come into view
 const animateOnScroll = () => {
-    const elements = document.querySelectorAll('.animate-on-scroll');
-    elements.forEach(element => {
-        const rect = element.getBoundingClientRect();
+    document.querySelectorAll('.animate-on-scroll').forEach(el => {
+        const rect = el.getBoundingClientRect();
         if (rect.top < window.innerHeight && rect.bottom > 0) {
-            element.classList.add('visible');
+            el.classList.add('visible');
         }
     });
 };
-
-// Initialize animations
 window.addEventListener('scroll', animateOnScroll);
 window.addEventListener('load', animateOnScroll);
 
 // Mobile menu toggle
 const mobileMenuBtn = document.querySelector('.navbar-toggler');
 const navbarCollapse = document.querySelector('.navbar-collapse');
-
 if (mobileMenuBtn && navbarCollapse) {
     mobileMenuBtn.addEventListener('click', () => {
         navbarCollapse.classList.toggle('show');
     });
-
-    // Close mobile menu when clicking outside
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', e => {
         if (!navbarCollapse.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
             navbarCollapse.classList.remove('show');
         }
@@ -51,34 +44,26 @@ if (mobileMenuBtn && navbarCollapse) {
 }
 
 // Form validation helper
-const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-};
+const validateEmail = email => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 // Constants
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzv_fC4qwICHoJJLHMPEGjT8xRslCTAHyL5gFldQ6-l7RGYMCdXHGEOzqtrLhTouPdi/exec';
 
 // Utility functions
 function getTimeStamp() {
-    const date = new Date();
-    const pad = v => (v < 10 ? '0' + v : v);
-    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ` +
-           `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    const d = new Date(), pad = v => v < 10 ? '0'+v : v;
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ` +
+           `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
-
 function getCookieValue(name) {
-    const value = '; ' + document.cookie;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
+    const v = '; '+document.cookie, parts = v.split(`; ${name}=`);
+    return parts.length===2 ? parts.pop().split(';').shift() : undefined;
 }
-
 function setCookieValue(name, value, days) {
     const d = new Date();
     d.setTime(d.getTime() + days*24*60*60*1000);
     document.cookie = `${name}=${value}; expires=${d.toUTCString()}; path=/`;
 }
-
 function getUVfromCookie() {
     const existing = getCookieValue('user');
     if (existing) return existing;
@@ -86,7 +71,6 @@ function getUVfromCookie() {
     setCookieValue('user', hash, 180);
     return hash;
 }
-
 function getDeviceType() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i
         .test(navigator.userAgent) ? 'mobile' : 'desktop';
@@ -96,32 +80,38 @@ function getDeviceType() {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('Document ready');
 
-    // --- Visitor tracking ---
-    let ip = 'unknown';
-    $.getScript('https://jsonip.com?callback=getIP');
-    window.getIP = function(json) {
-        ip = json.ip;
-        const visitorData = {
-            id: getUVfromCookie(),
-            landingUrl: window.location.href,
-            ip,
-            referer: document.referrer,
-            time_stamp: getTimeStamp(),
-            utm: new URLSearchParams(location.search).get('utm'),
-            device: getDeviceType()
-        };
-        console.log('Tracking visitor:', visitorData);
-        axios.get(`${APPS_SCRIPT_URL}?action=insert&table=visitors&data=${encodeURIComponent(JSON.stringify(visitorData))}`)
+    // --- Visitor tracking (JSONP + jQuery check) ---
+    if (typeof $ === 'undefined') {
+        console.error('jQuery가 로드되지 않아 방문자 트래킹이 작동하지 않습니다.');
+    } else {
+        window.getIP = json => {
+            const ip = json.ip;
+            const visitorData = {
+                id: getUVfromCookie(),
+                landingUrl: window.location.href,
+                ip,
+                referer: document.referrer,
+                time_stamp: getTimeStamp(),
+                utm: new URLSearchParams(location.search).get('utm'),
+                device: getDeviceType()
+            };
+            console.log('Tracking visitor:', visitorData);
+            axios.get(
+              `${APPS_SCRIPT_URL}` +
+              `?action=insert&table=visitors` +
+              `&data=${encodeURIComponent(JSON.stringify(visitorData))}`
+            )
             .then(res => console.log('Visitor tracking response:', res.data))
             .catch(err => console.error('Visitor tracking error:', err));
-    };
+        };
+        $.getScript('https://jsonip.com?callback=getIP');
+    }
 
     // --- Newsletter form handling ---
     const form = document.querySelector('#newsletterForm');
     const emailInput = document.querySelector('#submit-email');
     const adviceInput = document.querySelector('#submit-advice');
     const submitBtn = form?.querySelector('[type="submit"]');
-
     if (form && emailInput && adviceInput && submitBtn) {
         form.addEventListener('submit', e => {
             e.preventDefault();
@@ -134,16 +124,12 @@ document.addEventListener('DOMContentLoaded', () => {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 처리중...';
 
-            const payload = {
-                id: getUVfromCookie(),
-                email,
-                advice
-            };
+            const payload = { id: getUVfromCookie(), email, advice };
             const url = `${APPS_SCRIPT_URL}?action=insert&table=tab_final&data=${encodeURIComponent(JSON.stringify(payload))}`;
             console.log('Sending request to:', url);
             axios.get(url)
                 .then(res => {
-                    let clean = res.data.replace(/^undefined\(|\)$/g, '');
+                    const clean = res.data.replace(/^undefined\(|\)$/g, '');
                     const data = JSON.parse(clean);
                     if (data.success) {
                         form.reset();
@@ -169,15 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (downloadBtn) {
         downloadBtn.addEventListener('click', e => {
             e.preventDefault();
-            const downloadData = {
-                id: getUVfromCookie(),
-                time_stamp: getTimeStamp()
-            };
-            axios.get(`${APPS_SCRIPT_URL}?action=insert&table=downloadButton&data=${encodeURIComponent(JSON.stringify(downloadData))}`)
-                .then(res => console.log('Download tracking response:', res.data))
-                .catch(err => console.error('Download tracking error:', err));
+            const downloadData = { id: getUVfromCookie(), time_stamp: getTimeStamp() };
+            axios.get(
+              `${APPS_SCRIPT_URL}` +
+              `?action=insert&table=downloadButton` +
+              `&data=${encodeURIComponent(JSON.stringify(downloadData))}`
+            )
+            .then(res => console.log('Download tracking response:', res.data))
+            .catch(err => console.error('Download tracking error:', err));
 
-            // Show installation modal
             const modalHtml = `
                 <div class="modal fade" id="installModal" tabindex="-1">
                   <div class="modal-dialog">
@@ -204,25 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!document.getElementById('installModal')) {
                 document.body.insertAdjacentHTML('beforeend', modalHtml);
             }
-            const modal = new bootstrap.Modal(document.getElementById('installModal'));
-            modal.show();
-
-            modal._element.addEventListener('shown.bs.modal', function() {
-                const link = this.querySelector('a[href="extension.zip"]');
-                if (link) {
-                    link.addEventListener('click', () => {
-                        const clickData = {
-                            id: getUVfromCookie(),
-                            time_stamp: getTimeStamp()
-                        };
-                        axios.get(`${APPS_SCRIPT_URL}?action=insert&table=downloadButton&data=${encodeURIComponent(JSON.stringify(clickData))}`)
-                            .then(res => console.log('Download tracking response:', res.data))
-                            .catch(err => console.error('Download tracking error:', err));
-                    });
-                }
-            });
+            new bootstrap.Modal(document.getElementById('installModal')).show();
         });
-
         downloadBtn.addEventListener('mouseenter', () => downloadBtn.classList.add('btn-hover'));
         downloadBtn.addEventListener('mouseleave', () => downloadBtn.classList.remove('btn-hover'));
     }
@@ -235,5 +204,5 @@ document.querySelectorAll('.feature-card').forEach(card => {
 });
 
 // Initialize tooltips
-const tooltipTriggerList = Array.from(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+Array.from(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+     .forEach(el => new bootstrap.Tooltip(el));
